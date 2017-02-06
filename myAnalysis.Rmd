@@ -1,0 +1,53 @@
+---
+title: "myAnalysis"
+author: "Shaodong Wang"
+date: "2017年2月5日"
+output: html_document
+---
+First, import the data(like what professor did).
+
+```{r}
+library(plyr)
+library(choroplethr)
+library(dplyr)
+library(readr)
+library(data.table)
+dest = "https://www.fhwa.dot.gov/bridge/nbi/2016/delimited/WI16.txt"
+WI16 = fread(dest) 
+WI16 = as.tbl(WI16)
+classes = sapply(WI16, class)
+```
+
+Then, exclude the strange data(missing value, all 0, etc)
+
+```{r}
+M = WI16
+M = M[,-14]
+is.na(M) %>% rowSums %>% hist
+fun = function(x){ return(which(x>20)) }
+(bad =  is.na(M) %>% colSums %>% fun)
+M = M[,-bad]
+M = as.tbl(M)
+```
+
+Select variables that I am interested in.
+```{r}
+keep=c("STATE_CODE_001", "STRUCTURE_NUMBER_008" ,"YEAR_BUILT_027","SUPERSTRUCTURE_COND_059", "SUBSTRUCTURE_COND_060" )
+my = select(M, one_of(keep))
+mywi = filter(my,SUPERSTRUCTURE_COND_059 !="N",SUBSTRUCTURE_COND_060 !="N")
+mywi=mutate(mywi, old = 2017- YEAR_BUILT_027,super_Sub_compare=as.numeric(SUPERSTRUCTURE_COND_059)-as.numeric(SUBSTRUCTURE_COND_060))
+table(mywi$super_Sub_compare)
+```
+
+This result shows that superstructure is not more durable than substructure, vice versa.
+
+```{r}
+library(ggplot2)
+m1=lm(SUPERSTRUCTURE_COND_059~old,data=mywi)
+m2=lm(SUBSTRUCTURE_COND_060~old,data=mywi)
+ggplot(data=mywi)+geom_point(mapping = aes(x=old,y=SUPERSTRUCTURE_COND_059))+geom_abline(aes(intercept=m1$coefficients[1],slope=m1$coefficients[2]))
+ggplot(data=mywi)+geom_point(mapping = aes(x=old,y=SUBSTRUCTURE_COND_060))+geom_abline(aes(intercept=m2$coefficients[1],slope=m2$coefficients[2]))
+```
+
+These two plots both shows the older the bridge is, the worse the condition is(just like our common sense).But there're some bridge reconstructed after their built_year, so some bridges older than 100 years are still in good condition.
+
